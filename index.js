@@ -5,6 +5,8 @@ import bodyParser from 'body-parser';
 import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import axios from 'axios';
 
 const app = express();
 const port = 3001;
@@ -15,6 +17,9 @@ const openai = new OpenAI({
 
 app.use(cors());
 app.use(bodyParser.json());
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const requiredDays = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
 
@@ -141,6 +146,55 @@ app.post('/api/search-products', (req, res) => {
     }
   });
 });
+
+app.post('/analyze-food', async (req, res) => {
+  const { imageBase64 } = req.body;
+
+  if (!imageBase64) {
+    return res.status(400).json({ error: 'No image provided' });
+  }
+
+  try {
+    const api_key = process.env.OPENAI_API_KEY;
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${api_key}`
+    };
+
+    const payload = {
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "У меня сахарный диабет. Помогите мне определить, какая еда или продукт находится на изображении, опиши и проанализируй все ингредиенты, и потом на основе этого скажи можно ли мне есть это при моем диабете? Стоит ли придерживаться ограничений в порции при диабете? Сколько грамм/штук/и т.д. Результат должен содержать: 1) Что изображено на картинке.  2) SAFE или NOT SAFE для диабетика. 3) Рекомендации по порции с количеством грамм/штук и т.д. Выведи короткий, но информативный ответ. Пожалуйста, учти мои ограничения в питании. Мне нужно строго соблюдать правила питания при диабете."
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:image/jpeg;base64,${imageBase64}`
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 300,
+      temperature: 0.2
+    };
+
+    const response = await axios.post("https://api.openai.com/v1/chat/completions", payload, { headers });
+
+    const result = response.data.choices[0].message.content.trim();
+    console.log("GPT Response:", result);
+    res.json({ result });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'An error occurred while analyzing the image.' });
+  }
+});
+
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
