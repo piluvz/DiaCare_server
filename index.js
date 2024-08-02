@@ -180,7 +180,7 @@ app.post('/analyze-food', async (req, res) => {
           ]
         }
       ],
-      max_tokens: 300,
+      max_tokens: 3000,
       temperature: 0.2
     };
 
@@ -189,6 +189,7 @@ app.post('/analyze-food', async (req, res) => {
     const result = response.data.choices[0].message.content.trim();
     console.log("GPT Response:", result);
     res.json({ result });
+    console.log(response.data)
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'An error occurred while analyzing the image.' });
