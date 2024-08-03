@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
+import sharp from 'sharp';
 
 const app = express();
 const port = 3001;
@@ -16,7 +17,8 @@ const openai = new OpenAI({
 });
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -155,6 +157,18 @@ app.post('/analyze-food', async (req, res) => {
   }
 
   try {
+    const imageBuffer = Buffer.from(imageBase64, 'base64');
+    
+    const resizedImageBuffer = await sharp(imageBuffer)
+      .resize(800, 800, {
+        fit: sharp.fit.inside,
+        withoutEnlargement: true
+      })
+      .toBuffer();
+
+    // Преобразуем обратно в base64
+    const resizedImageBase64 = resizedImageBuffer.toString('base64');
+
     const api_key = process.env.OPENAI_API_KEY;
     const headers = {
       "Content-Type": "application/json",
@@ -174,13 +188,13 @@ app.post('/analyze-food', async (req, res) => {
             {
               type: "image_url",
               image_url: {
-                url: `data:image/jpeg;base64,${imageBase64}`
+                url: `data:image/jpeg;base64,${resizedImageBase64}`
               }
             }
           ]
         }
       ],
-      max_tokens: 3000,
+      max_tokens: 300,
       temperature: 0.2
     };
 
@@ -189,7 +203,6 @@ app.post('/analyze-food', async (req, res) => {
     const result = response.data.choices[0].message.content.trim();
     console.log("GPT Response:", result);
     res.json({ result });
-    console.log(response.data)
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'An error occurred while analyzing the image.' });
